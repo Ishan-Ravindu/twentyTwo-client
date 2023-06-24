@@ -31,25 +31,21 @@ function ErrorComponent(props) {
 
     
     const [message, setmessage] = useState(null)
-    const [isShow, setisShow] = useState("none")
+    const [isShow, setisShow] = useState("block")
+
+    
     
     useEffect(() => {
-            
-            const inter = () => {
-                setTimeout(() => {
-                    setmessage(null);
-                    setisShow("none");
-                    console.log("hiding error")
-                }, 5000)
-            }
-            clearInterval(inter, ()=> console.log("i am clear interval"))
-            setmessage(props.message);
-            inter()
-            setisShow("block");
-               
-                
-        
-
+        setmessage(props.message);   
+        const timeout = setTimeout(() => {
+            setmessage(null);
+            console.log("hiding error")
+        }, 5000)
+    
+        return () => {
+            setmessage(null);
+            clearTimeout(timeout);
+        }
     }, [props.message, props.id])
     
   return (
