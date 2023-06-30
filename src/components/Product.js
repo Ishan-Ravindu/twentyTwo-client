@@ -4,116 +4,91 @@ import ProductItem from './ProductItem'
 import styled from 'styled-components'
 import axios from "axios"
 import { mobile } from '../Responsive'
-import { publicRequest } from '../axiosReqMethods'
-import { setError } from '../redux/errorRedux'
-import { useDispatch } from 'react-redux'
-import ProductNotFound from './ProductNotFound'
-
 
 
 const Container = styled.div`
-    display: flex;
-    flex-direction: column;
-    align-items: center;  
-    margin-bottom: 30px;
-`
-const LoadMore = styled.button`
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid teal;
-  background-color: white;
-  box-shadow: 0 5px 15px rgba(0, 128, 128, 0.1);
-  transition: all 0.3s ease-in-out;
-  :hover {
-      background-color: teal;
-      color: white;
-      box-shadow: 0 5px 15px rgba(0, 128, 128, 0.3);
-  }
-`
-const Wrapper = styled.div`
-  padding: 20px;
+    padding: 20px;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-evenly;
     ${mobile({
       padding: "0px"
     })}
+    
 `
-
 
 function Product(props) {
   const {sort, cat, filter} = props;
+
   const [products, setProducts] =useState([])
-  const [page, setPage] = useState(1)
-  const {color, size} = filter || {}
-  const [prevFilters, setPrevFilters] = useState({color: null, size: null, sort: null});
-  const dispatch = useDispatch()
+  const [filteredproducts, setFilteredProducts] = useState([])
+
+  const [reqcancled , setReqCancle] = useState(false)
 
   useEffect(() => {
-      setPrevFilters({sort, color, size});
-      setPage(1)
-  }, [sort, color, size]);
+    const axiosCancelToken = axios.CancelToken.source()
 
-
-  useEffect(() => {
-    const axiosCancelToken = axios.CancelToken.source()   
-    let url = `/api/products/allinfo?page=${page}`
-    if (cat) url += `&category=${cat}`
-    if (color) url += `&color=${color}`
-    if (size) url += `&size=${size}`
-    if (sort) url += `&sort=${sort}`
-
-    const getProducts = async () => { 
-      try {
-        const res = await publicRequest.get( url ,{cancelToken: axiosCancelToken.token}) 
-        const filtersChanged = JSON.stringify(prevFilters) !== JSON.stringify({color, size, sort}) //checking if a filtering is changed
-        console.log({filtersChanged})
-        if (filtersChanged) { //if changd then set new product
-            setProducts(res.data);
-        } else { //else append new product with prev product
-            setProducts(p => [...p, ...res.data]);
+    if(!reqcancled) {
+      
+      const getProducts = async () => { 
+        try {
+          const res = await axios.get(cat ? `${process.env.REACT_APP_BACKEND_API_BASE_URL}/api/products/allinfo?category=${cat}` : `${process.env.REACT_APP_BACKEND_API_BASE_URL}/api/products/allinfo` ,{cancelToken: axiosCancelToken.token}) 
+          !cat ? setProducts(res.data) : setProducts(res.data.sort((a, b) => -a.createdAt.localeCompare(b.createdAt)))
+          
+        } catch (error) {
+          if(axios.isCancel(error)) {
+            console.log("req cancled by user");
+          } else console.log(error)
         }
-        console.log(`total coount = ${res.data}`)
-      } catch (error) {
-        if(axios.isCancel(error)) { //req canceled by user
-          setProducts([])
-        } else {
-          dispatch(setError(error.response.data.message))
-
-        }          
-      }
-    } 
-    getProducts();
-
+      } 
+      getProducts();
+      
+    }
     return () => {
       axiosCancelToken.cancel();
+      setReqCancle(true);
     }
-  }, [cat, page, color, size,sort])
+  }, [cat])
 
-
+  //sort products logic
+  useEffect(() => {
+    if (sort === "Newest") {
+      setFilteredProducts((prev) =>
+        [...prev].sort((a, b) => -a.createdAt.localeCompare(b.createdAt))
+      );
+    } else if (sort === "price(L T H)") {
+      setFilteredProducts((prev) =>
+        [...prev].sort((a, b) => a.price - b.price)
+      );
+    } else {
+      setFilteredProducts((prev) =>
+        [...prev].sort((a, b) => b.price - a.price)
+      );
+    }
+  }, [sort])
   
   //filter products logic
     useEffect(()=> {
       filter && filter.color === "Color" && delete filter.color;
       filter && filter.size === "Size" && delete filter.size;
-    }, [filter])
+      
+      
+      console.log(filter);
+        cat && setFilteredProducts(products.filter((item)=> 
+          Object.entries(filter).every(([key, value]) => item[key].includes(value))
+        ))
+    }, [products,cat,filter])
+  
+  
+   
   
   return (
-    <>
-      <Container className='container'>
-        { !products.length ? <ProductNotFound/> 
-        :
-          <>
-            <Wrapper>
-              {products.map((Data)=> { return <ProductItem data={Data} key={Data._id} />})}       
-            </Wrapper> 
-            <LoadMore onClick={() => setPage(p => p+1)}>Load More</LoadMore>
-          </>
+    <Container className='container'>
+        { cat ?
+        filteredproducts.map((Data)=> { return <ProductItem data={Data} key={Data._id} />})
+        : products.map((Data)=> { return <ProductItem data={Data} key={Data._id} />})
         }
-      </Container>
-      
-    </>
+    </Container>
   )
 }
 

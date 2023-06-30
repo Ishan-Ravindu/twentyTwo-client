@@ -1,7 +1,6 @@
 import { configureStore } from "@reduxjs/toolkit";
 import cartReducer from "./cartRedux"
 import userReducer from './userRedux'
-import errorReducer from "./errorRedux";
 import {
     persistStore,
     persistReducer,
@@ -25,7 +24,6 @@ import {
 export const store = configureStore({
     reducer:{
         cart: cartReducer,
-        error: errorReducer,
         user: persistedReducer,
     },
     middleware: (getDefaultMiddleware) =>

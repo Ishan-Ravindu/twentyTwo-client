@@ -9,26 +9,20 @@ import NewsLetter from '../components/NewsLetter'
 import { mobile } from '../Responsive'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {publicRequest, userRequest} from '../axiosReqMethods'
-import { addProduct} from '../redux/cartRedux'
+import { addProduct, deleteProduct, editProduct } from '../redux/cartRedux'
 import { useDispatch, useSelector } from 'react-redux'
 import addDynamicScript from '../helpers/addDynamicScript'
 import { useRef } from 'react'
-import Loading from '../components/Loading'
-import axios from 'axios'
-import ReviewComp from '../components/ReviewComp'
-import WriteaReview from '../components/WriteaReview'
-import { setError } from '../redux/errorRedux'
 
 
 
 
 const Wrapper = styled.div`
     display: flex;
-    padding: 20px; 
+    padding: 20px;
     
     ${mobile({
         flexDirection: "column",
-        padding: "20px 10px"
     })}
 
 `
@@ -49,15 +43,8 @@ const Image = styled.img`
     object-fit: cover;
     object-position: center;
     transition: transform 0.5s ease-in-out;
-    
-     // so many for browser supports for imageDragable: false
-    -webkit-user-drag: none;
-    user-select: none;
-    -moz-user-select: none;
-    -webkit-user-select: none;
-    -ms-user-select: none;
 
-    // so many for browser supports for zoom cursor
+    // so many for browser supports
     cursor: -moz-zoom-in; 
     cursor: -webkit-zoom-in; 
     cursor: zoom-in;
@@ -69,10 +56,7 @@ const Image = styled.img`
 const InfoContainer = styled.div`
     padding: 0px 20px;
     flex: 1;
-
-    ${mobile({
-        padding: "0px 0px",
-    })}
+    
     
 `
 
@@ -204,7 +188,6 @@ const Button = styled.button`
     background-color: white;
     margin: 5px 5px;
     cursor: pointer;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     &:hover {
         background-color: #c3c7c4;
     }
@@ -219,114 +202,99 @@ const Button = styled.button`
 
 
 function ProductPage(props) {
-    const dispatch = useDispatch()
-    const [product, setProduct] = useState({})
-    const [ProductQuentity, setProductQuentity] = useState(1)
-    const [isLoading, setIsLoading] = useState(true)
-    //const [error, setError] = useState(null)
-    //setting defalut size and color for product
-    const [Color, setColor] = useState((product?.color?.length >= 0 && `#${product.color[0]}`) || "#000000");
-    const [size, setsize] = useState((product?.size?.length >= 0 && product.size[0]) || "XL");
-    const [modalisOpen, setmodalIsOpen] = useState(false)
+
     
     //to change title as soon as component mounts
     useEffect(() => {
         document.title = `SatnamCreation - ${props.title}`
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    //axios req used to cancel prev request
-    const ourRequest = axios.CancelToken.source()
 
-    //fetching product info
-    const location = useLocation();
-    const id = location.pathname.split("/")[2];
-    useEffect(() => {
-      const gatData = async () => {
-        setIsLoading(true)
-        try {
-            const data = await publicRequest.get(`/api/products/info/${id}`, {cancelToken: ourRequest.token});
-            setProduct(data.data);
-            setIsLoading(false)  
-        } catch (error) {
-            dispatch(setError(error.response.data.message))
-            setIsLoading(false)  
-        }     
-      }
-      gatData()
-
-      return () => {
-        ourRequest.cancel()
-        setProduct({})
-        setProductQuentity(1)
-      }
-    }, [id])
-   
-    const HandlClick = (type) => {   
+    const [ProductQuentity, setProductQuentity] = useState(1)
+    const HandlClick = (type) => {
+     
+        
         if(type === "dec") setProductQuentity((prev) => ProductQuentity > 1 ? prev -1: prev)
         if(type === "inc") setProductQuentity((prev) => ProductQuentity < 100 ? prev +1: prev);
-    } 
-    const navigate = useNavigate();
-    //add to cart   
+        } 
+
+
+    const location = useLocation();
+    const id = location.pathname.split("/")[2];
+    const [product, setProduct] = useState({})
     
-    const user = useSelector(state => state.user.currentUser);   
-    const handleSubClick = async () => { 
-        if(!user) {
-            return navigate("/login")
-        }
-        console.log("inside handle")
-        try {
-            const res = await userRequest.post(`/api/cart`,{
-                products : [
-                    {
-                        productID: product.productno,
-                        quantity: ProductQuentity,
-                        color: Color || product.color[0],
-                        size : size || product.size[0]
-                    }
-                ]
-            }) 
-            !res.data.productExisted && dispatch(addProduct()) 
-            dispatch(setError(res?.data?.message))
-        } catch (error) {
-            console.log(error)
-            dispatch(setError(error.response?.data?.message))
-        }
+
+    useEffect(() => {
+      const gatData = async () => {
+          const data = await publicRequest.get(`/api/products/info/${id}`);
+          setProduct(data.data);
+      }
+      gatData()
+    }, [id])
+    
+  
+    const [Color, setColor] = useState();
+    const [size, setsize] = useState();
+
+    //////////////this dosent work dk why
+    // const [Color, setColor] = useState(product.color[0]);
+    // const [size, setsize] = useState(product.size[0]);
+
+
+    //redux action
+    const dispatch = useDispatch()
+    const cartProducts = useSelector(state => state.cart);
+    const user = useSelector(state => state.user.currentUser);
+    
+    const handleSubClick = async () => {
+        let exist = cartProducts.products.filter((p) => p._id === product._id);
+        let index = cartProducts.products.findIndex((p) => p._id === product._id);
+        
+        //if product already exist 
+        if(exist.length > 0){
+            
+            dispatch(deleteProduct({index})) //deleting a product by pasing index
+            dispatch( //again adding product by adding prev n current quantity
+                            //added XL size by default bcz it wa selecting by default if user dosent selects size
+                editProduct({...product ,size:size || "XL", color:Color, quantity: (exist[0]?.quantity + ProductQuentity), price: product.price }) 
+                
+            )
+        } else {    
+            dispatch(
+                            //added XL size by default bcz it wa selecting by default if user dosent selects size
+                addProduct({...product ,size:size || "XL", color:Color, quantity:ProductQuentity, price: product.price })            
+                )
+        }  
+        const res = await userRequest.post(`/api/cart`,{
+            products : [
+                {
+                    productID: product.productno,
+                    quantity: ProductQuentity,
+                    color: Color || product.color[0],
+                    size : size || product.size[0]
+                }
+            ]
+        }) 
     }
-
-
-    
+    const navigate = useNavigate();
     const handleBuyNow = async () => {
         if(!user) {
             return navigate('/login');
         } 
+        //const loadRes = await addDynamicScript("https://checkout.razorpay.com/v1/checkout.js");
         if(!window.Razorpay) {
             await addDynamicScript("https://checkout.razorpay.com/v1/checkout.js") //script is not loading at first time dk why so i added this XD
         } 
-
-
-        const {data:{order}} = await userRequest.post("api/buy/checkout",{
-            user:user._id,
-            product: {
-                productID: product._id,
-                quantity:ProductQuentity,
-                size, 
-                color:Color,
-            },
-            type: "product"
-        });
-
+        const {data:{order}} = await userRequest.post("api/buy/checkout",{productID: product._id, quantity:ProductQuentity, size, color:Color,user:user._id});
         const {data:{key}} = await userRequest.get("api/buy/getkey");
-
-        if(!order || !key){
-            return dispatch(setError("error accured while creating order"))
-        }
-          
+        
+        
         const options = {
-            key: key, //reciving key from backend sue to security 
-            amount: order.ammount, 
+            key: key, // Enter the Key ID generated from the Dashboard
+            amount: order.ammount, // Amount is in currency subunits. Default currency is INR. Hence, 50000 refers to 50000 paise
             currency: "INR",
             name: product.title,
-            description : `${product.desc.slice(0, 252)}...` || "random description", //slicing it because razor pay dosent allow desc length more then 255
+            description : product.desc || "random description",
             image: product.img,
             order_id: order.id, //This is a sample Order ID. Pass the `id` obtained in the response of Step 1
             callback_url: "http://localhost:4000/api/buy/paymentVerify",
@@ -341,9 +309,14 @@ function ProductPage(props) {
             theme: {
                 color: "#40a0a0"
             }
-        };      
+        };
+        
         const rzp1 = new window.Razorpay(options);
-        rzp1.open();       
+        rzp1.open();
+
+          //ERRORRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+          //payment veefy giving nothng 
+        
     }
 
 
@@ -366,9 +339,9 @@ function ProductPage(props) {
       <Announcments/>
       <Navbar/>
         {
-            isLoading ? <Loading/> :            
-            <>
-            <Wrapper>    
+            product ?
+            <Wrapper>
+        
             <ImgContainer>
               <Image src={product.img} onMouseMove={handleImgMouseEnter} ref={img} onMouseLeave={hadleImgMouseLeave}/>
             </ImgContainer>
@@ -404,7 +377,8 @@ function ProductPage(props) {
                           <CartValue>{ProductQuentity}</CartValue>
                           <ValueARButton>
                               <Add onClick={()=>HandlClick("inc")}/>
-                          </ValueARButton>                          
+                          </ValueARButton>
+                          
                         </ValueContainer>
                         <PurchaeContainer>
                           <Button onClick={handleSubClick}>Add To Cart</Button>
@@ -413,11 +387,10 @@ function ProductPage(props) {
                       </CartContainer>
             </InfoContainer>
   
-        </Wrapper> 
-        <WriteaReview product={product} setModal={setmodalIsOpen} isOpen={modalisOpen} />
-        <ReviewComp productID={product._id} productName={product.title} rating={product.ratingsAverage} ratingCount={product.ratingsQuantity} setModal={setmodalIsOpen}/>
-        </>
+        </Wrapper>
+            : <h1>Loading...</h1>
         }
+      
       <NewsLetter/>
       <Footer/>
       

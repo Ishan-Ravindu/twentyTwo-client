@@ -2,7 +2,7 @@ import React, {useEffect, useState} from 'react'
 import styled from 'styled-components'
 import Navbar from '../components/Navbar'
 import { mobile } from '../Responsive'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { login } from '../redux/apiCalls'
 import { useDispatch, useSelector } from 'react-redux'
 
@@ -10,7 +10,7 @@ import { useDispatch, useSelector } from 'react-redux'
 
 const Container = styled.div`
     width: 100vw;
-    height: calc(100vh - 58px); //60px of navbar
+    height: calc(100vh - 60px); //60px of navbar
     display: flex;
     justify-content: center;
     align-items: center;
@@ -97,11 +97,14 @@ function Login(props) {
   const [password, setPassword] = useState("");
   const { isFetching, isError, currentUser} = useSelector(state => state.user)
 
+  console.log(currentUser)
   const dispatch = useDispatch()
+
+  const navigate = useNavigate()
   const submit = async (e) => {
     
     e.preventDefault();
-    login( dispatch ,{ email , password})
+    login( dispatch ,{ email , password},  navigate)
 
   }
 

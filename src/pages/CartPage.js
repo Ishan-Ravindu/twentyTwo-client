@@ -4,16 +4,13 @@ import Navbar from '../components/Navbar'
 import styled from 'styled-components'
 import NewsLetter from '../components/NewsLetter'
 import Footer from '../components/Footer'
-import { Add, ClearOutlined, Remove } from '@material-ui/icons'
+import { Add, ClearOutlined, DeleteOutlineOutlined, Remove } from '@material-ui/icons'
 import { mobile } from '../Responsive'
 import  { useSelector, useDispatch } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
-import { userRequest } from '../axiosReqMethods'
-import { deleteProduct } from '../redux/cartRedux'
-import addDynamicScript from '../helpers/addDynamicScript'
-import { setError } from '../redux/errorRedux'
-import EmptyCartComponent from '../components/EmptyCartComponent'
-import Loading from '../components/Loading'
+import { addProduct, deleteProduct, setPrice} from '../redux/cartRedux'
+import { StyleRounded } from '@mui/icons-material'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { publicRequest, userRequest } from '../axiosReqMethods'
 
 
 
@@ -63,12 +60,6 @@ const Bottom = styled.div`
 `
 const Info = styled.div`
     flex: 3;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    @media only screen and (max-width: 970px) {
-        align-items: center;       
-    }
 
 `
 
@@ -88,9 +79,6 @@ const Product = styled.div`
         flexDirection: "column",  
         margin: "10px 5px",
     })} 
-    @media only screen and (max-width: 970px) {
-        width: 99%;
-    }
 
     :hover{
       box-shadow: 0px 0px 5px #888888;
@@ -102,9 +90,10 @@ const DelButton = styled.div`
     position: absolute;
     right: 0px;
     top: 0px;
-
     ${mobile({
-        top: "45%"
+        top: "50%",
+        right: "0px",
+        
     })}
     
 `
@@ -120,7 +109,7 @@ const ProductDeteail = styled.div`
 `
 const Image = styled.img`
     width: 200px;
-    max-width: 30%;
+    max-width: 100%;
     object-fit: cover;
 
 `
@@ -209,14 +198,10 @@ const Hr = styled.hr`
 const Summary = styled.div`
     flex: 1;
     max-height: 50vh;
-    width: 350px;
-    max-width: 100%;
+    max-width: 350px;
     border: solid lightgray 1px;
     border-radius: 2vmax;
     padding: 10px;
-    @media only screen and (max-width: 970px) {
-        width: 90%;
-    }
 `
 
 const SummaryTitle = styled.h1`
@@ -246,18 +231,11 @@ const ButtonWrapper = styled.div`
 `
 const Button = styled.button`
     background-color: black;
-    cursor: pointer;   
     color: white;
     border: none;
     padding: 20px;
     width: 80%;
     margin-top: 20px;
-
-    :disabled {
-        background-color: #6b6d70;
-        cursor: not-allowed;
-    }
-
     ${mobile({
         width: "50%",
         borderRadius: "5%"  ,   
@@ -267,132 +245,77 @@ const Button = styled.button`
     
 `
 
+
+
 function CartPage(props) {
     const dispatch = useDispatch();
     const navigate = useNavigate()
     const [cartProductRes, setCartProductRes] = useState();
-    const [fetchCartLoading, setFetchCartLoading] = useState();
 
     //to change title as soon as component mounts
     useEffect(() => {
         document.title = `SatnamCreation - ${props.title}`
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
     
-    const user = useSelector(state => state?.user?.currentUser);
+    //api calls
+    const userID = useSelector(state => state?.user?.currentUser?._id);
 
 
-    //get User Cart
     useEffect( async () => {
-        if(user) {
-            try{      
-                setFetchCartLoading(true)         
-                const res = await userRequest.get(`/api/cart/info/${user._id}`)
-                setFetchCartLoading(false)
+        if(userID) {
+            try{
+                const res = await userRequest.get(`/api/cart/info/${userID}`)
+                console.log(res)
                 setCartProductRes(res.data)
-                
             }catch(err){
                 console.log("error", err)
-                setFetchCartLoading(false)
-                dispatch(setError(err.response.data.message))      //setting error       
-            }           
-        }
-        return () => {
-            setCartProductRes(null)
+                //TODO: display error component
+            }
+            
         }
     }, [])
 
-    //count cart total
-    const [totalCartPrice, setTotalCartPrice] = useState(0)
+    const cartProducts = useSelector(state => state.cart)
+
+
+
     useEffect(() => {   
-        const total = cartProductRes?.products.reduce((total, item) => {
-            return total + (item.price * item.quantity)
-        },0)
-        setTotalCartPrice(total);
-    }, [cartProductRes?.products, cartProductRes?.products?.map(p => p.quantity)])//map is used bcz we need to reRender this component if any products quantity changes so we maped true every product quantity
-     
-    //delete product
+        let totalPrice = 0;
+        cartProducts.products.forEach((p) => {    
+            totalPrice = totalPrice + (p.quantity * p.price); 
+        });
+        dispatch(setPrice(totalPrice))
+
+        
+    }, [cartProducts.products])
+    
+    console.log(`redux price :${cartProducts.price}`)       
+    
     const handleDeleteProduct = async (e, id) => {
         e.preventDefault();
         try{
-            const filteredProducts = cartProductRes?.products?.filter(p => {
+            const filteredProducts = cartProductRes.products.filter(p => {
                 return id !== p.productID
             })
             setCartProductRes(e => ({...e, products: filteredProducts}))
-            dispatch(deleteProduct())
-            const res = await userRequest.delete(`/api/cart/${id}`)     
-            dispatch(setError(res.data.message))
-        }catch(error){
-            console.log("error", error)
-            dispatch(setError(error.response.data.message))
+            const res = await userRequest.delete(`/api/cart/${id}`)
+            console.log(res)
+            //TODO: display Success component
+        }catch(err){
+            console.log("error", err)
+            //TODO: display error component
         }
+        // let index = cartProducts.products.findIndex((p) => p._id === id);
+        // console.log(`delete index : ${index}`)
+        // dispatch(deleteProduct({index}))
+        console.log(cartProductRes)
     }
 
-    //handle dec inc in product Quantity
-    const handleProductQuantityChange = async (productID, quantity, incORdec) => {
-        try {
-            const res = await userRequest.put(`/api/cart/updatequantity/${productID}/${quantity}`)
-            const productIndex = cartProductRes.products.findIndex(p => p.productID === productID)
-            console.log({productIndex})
-            const newProduct = cartProductRes.products[productIndex].quantity = quantity
-            setCartProductRes(p => ({...p, newProduct}))
-            dispatch(setError(res.data.message))
-        } catch (error) {
-            console.log(error)
-            dispatch(setError(error.response.data.message))
-        }
-    }
-
-    const [isCheckoutLoading, setischeckoutLoading] = useState(false);
-    const handleCheckout = async () => {
-
-        if(!user) {
-            return navigate('/login');
-        } 
-
-        setischeckoutLoading(true) 
-        if(!window.Razorpay) {
-            await addDynamicScript("https://checkout.razorpay.com/v1/checkout.js") //script is not loading at first time dk why so i added this XD
-        } 
-
-        const {data:{order}} = await userRequest.post("api/buy/checkout",{
-            user:user._id,
-            type: "cart"
-        });
-
-        const {data:{key}} = await userRequest.get("api/buy/getkey");
-        setischeckoutLoading(false) 
-
-        if(!order || !key){
-            return dispatch(setError("error accured while creating order"));
-        }
-          
-        const options = {
-            key: key, //reciving key from backend for security purpose  
-            amount: order.ammount, 
-            currency: "INR",
-            name: `${user.firstName} ${user.lastName}'s Cart`,
-            description :  `${user.firstName} ${user.lastName}'s Cart includes total ${cartProductRes?.products?.length}`,
-            image: "https://toppng.com/uploads/preview/astronaut-art-png-jpg-royalty-free-stock-astronauta-dibujo-11562856188offwkk8qo8.png",
-            order_id: order.id, //This is a sample Order ID. Pass the `id` obtained in the response of Step 1
-            callback_url: "http://localhost:4000/api/buy/paymentVerify",  
-            prefill: {
-                name: `${user.firstName} ${user.lastName}`,
-                email: user.email,
-                contact: user.number
-            },
-            notes: {
-                address: "Razorpay Corporate Office"
-            },
-            theme: {
-                color: "#40a0a0"
-            }
-        };      
-        const rzp1 = new window.Razorpay(options);
-        rzp1.open();       
-        setCartProductRes(null)
+    const handleProductClick = (id) => {
+        console.log("clicked")
+        navigate(`/product/${id}`)
     }
     
-
 
   return (
     <Container>
@@ -400,11 +323,8 @@ function CartPage(props) {
         <Navbar/>
         <Wrapper>
             <Title>Cart</Title>
-            {fetchCartLoading ? <Loading/> :
-            (cartProductRes?.products.length
-            ? <>
             <Top>
-                <TopButton >Continue Shopping</TopButton>
+                <TopButton>Continue Shopping</TopButton>
                 <TopTexts>
                     <TopText>Shopping ba</TopText>
                     <TopText>Your Wishlist</TopText>
@@ -412,13 +332,14 @@ function CartPage(props) {
                 <TopButton type="filled">CheckOut Now</TopButton>
             </Top>
             <Bottom>
-                <Info>    
-                    {cartProductRes?.products?.map((product) => (
+                <Info>
+                    {cartProductRes?.products ? 
+                    cartProductRes.products.map((product) => (
                         <Product key={product.productID}>
                             <DelButton onClick={(e) => handleDeleteProduct(e,product.productID)}>
                                 <ClearOutlined style={{fontSize: "40px" , color: "#AB2A28"}}/>
                             </DelButton>
-                            <ProductDeteail onClick={() => navigate(`/product/${product._id}`)}>
+                            <ProductDeteail onClick={() => handleProductClick(product._id)}>
                                 <Image src={product.img}/>
                                 <Details>
                                     <ProductName><b>Product:</b> {product.title}</ProductName>
@@ -429,11 +350,11 @@ function CartPage(props) {
                             </ProductDeteail>
                             <PriceDeteail>
                                 <ProductAmmountContainer>
-                                    <ValueARButton onClick={() => handleProductQuantityChange(product.productID, --product.quantity)}>
+                                    <ValueARButton>
                                         <Remove/>
                                     </ValueARButton>
                                     <ProductAmmount>{product.quantity}</ProductAmmount>
-                                    <ValueARButton onClick={() => handleProductQuantityChange(product.productID, ++product.quantity)}>
+                                    <ValueARButton>
                                         <Add/>
                                     </ValueARButton>
                                 
@@ -441,29 +362,28 @@ function CartPage(props) {
                                 <ProductPrice>{product.price}</ProductPrice>
                             </PriceDeteail>
                         </Product>
-                    ))}
+                    ))
+                :
+                <p>No Products In cart found</p>}
                     <Hr/>
                 </Info>
                 <Summary>
                     <SummaryTitle>Products</SummaryTitle>
-                        {cartProductRes?.products?.map((product) => (
+                        {cartProducts.products.map((product) => (
                             <SummaryItem key={product._id}>
                                 <SummaryText>{product.title}</SummaryText>
-                                <SummaryPrice>{(product.price * product.quantity)?.toFixed(2)}</SummaryPrice>
+                                <SummaryPrice>{product.price * product.quantity}</SummaryPrice>
                             </SummaryItem>
                         ))}
                         <SummaryItem type="total">
                             <SummaryText >Total</SummaryText>
-                            <SummaryPrice>{totalCartPrice?.toFixed(2)}</SummaryPrice>
+                            <SummaryPrice>{cartProducts.price}</SummaryPrice>
                         </SummaryItem>
                         <ButtonWrapper>
-                            <Button onClick={handleCheckout} disabled={isCheckoutLoading? true : false}>Check out</Button>
+                            <Button>Check out</Button>
                         </ButtonWrapper>    
                 </Summary>
-            
             </Bottom>
-            </>
-            : <EmptyCartComponent/>)}
         </Wrapper>
         <NewsLetter/>
         <Footer/>

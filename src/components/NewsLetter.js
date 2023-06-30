@@ -14,7 +14,6 @@ const Container = styled.div`
 const Title = styled.h1`
     font-size: 70px;
     margin-bottom: 25px;
-    text-align: center;
     @media only screen and (max-width: 500px) {
         font-size: 50px;
     }
@@ -67,8 +66,8 @@ const Button = styled.button`
 function NewsLetter() {
   return (
     <Container>
-        <Title>Subscribe to our NewsLetter</Title>
-        <Description>and recive upto 300rs discount on your first order</Description>
+        <Title>Contect us</Title>
+        <Description>Lorem ipsum dolor sit amet consectetur adipisicing elit. Sunt, odit!</Description>
         <InputContainer>
             <Input placeholder='Enter your email'/>
             <Button><Send/></Button>

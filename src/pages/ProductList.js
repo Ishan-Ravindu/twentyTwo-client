@@ -53,16 +53,22 @@ function ProductList(props) {
     //filters logic
     const [filter, setFilter] = useState({});
     const handleFiters = (e) => {
-        const value = e.target.value;       
+        const value = e.target.value;
+        
         setFilter({
             ...filter,
             [e.target.name]: value,
         })  
         
     }
-    //Sprting
+
+    
+
+    //sort logic
     const [sort, setSort] = useState("Newest");
     
+
+
     //to change title as soon as component mounts
     useEffect(() => {
         document.title = `SatnamCreation - ${props.title}`
@@ -99,8 +105,8 @@ function ProductList(props) {
                 <FilterText>Sort Products:</FilterText>
                 <Select onChange={e => setSort(e.target.value)}>
                     <Options defaultValue>Newest</Options>
-                    <Options value="price-desc">price(H T L)</Options>
-                    <Options value="price-asc">Price(L T H)</Options>
+                    <Options>price(L T H)</Options>
+                    <Options>Price(H T L)</Options>
                     
                 </Select>
             </Filter>
