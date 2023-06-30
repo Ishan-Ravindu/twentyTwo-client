@@ -120,6 +120,13 @@ function ProductItem(data) {
   }
  
   const { img, title, _id, desc, price} = data.data;
+  console.log("dataaaaaaaaa")
+  console.log(data)
+
+  
+
+
+
 
   return (
     
