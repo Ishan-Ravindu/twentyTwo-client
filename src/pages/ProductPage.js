@@ -23,6 +23,7 @@ const Wrapper = styled.div`
     
     ${mobile({
         flexDirection: "column",
+        padding: "20px 10px"
     })}
 
 `
@@ -43,6 +44,7 @@ const Image = styled.img`
     object-fit: cover;
     object-position: center;
     transition: transform 0.5s ease-in-out;
+    
 
     // so many for browser supports
     cursor: -moz-zoom-in; 
@@ -56,7 +58,10 @@ const Image = styled.img`
 const InfoContainer = styled.div`
     padding: 0px 20px;
     flex: 1;
-    
+
+    ${mobile({
+        padding: "0px 0px",
+    })}
     
 `
 
@@ -188,6 +193,7 @@ const Button = styled.button`
     background-color: white;
     margin: 5px 5px;
     cursor: pointer;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     &:hover {
         background-color: #c3c7c4;
     }
@@ -204,8 +210,10 @@ const Button = styled.button`
 function ProductPage(props) {
     const [product, setProduct] = useState({})
     const [ProductQuentity, setProductQuentity] = useState(1)
-    const [Color, setColor] = useState();
-    const [size, setsize] = useState();
+
+    //setting defalut size and color for product
+    const [Color, setColor] = useState((product?.color?.length >= 0 && `#${product.color[0]}`) || "#000000");
+    const [size, setsize] = useState((product?.size?.length >= 0 && product.size[0]) || "XL");
     
     //to change title as soon as component mounts
     useEffect(() => {
@@ -266,10 +274,20 @@ function ProductPage(props) {
         } 
 
 
-        const {data:{order}} = await userRequest.post("api/buy/checkout",{productID: product._id, quantity:ProductQuentity, size, color:Color,user:user._id});
+        const {data:{order}} = await userRequest.post("api/buy/checkout",{
+            user:user._id,
+            product: {
+                productID: product._id,
+                quantity:ProductQuentity,
+                size, 
+                color:Color,
+            },
+            type: "product"
+        });
+
         const {data:{key}} = await userRequest.get("api/buy/getkey");
 
-        if(!order || key){
+        if(!order || !key){
             return console.log("error accured while creating order");
             //TODO: add Message Prompt
         }
@@ -279,7 +297,7 @@ function ProductPage(props) {
             amount: order.ammount, 
             currency: "INR",
             name: product.title,
-            description : product.desc || "random description",
+            description : `${product.desc.slice(0, 252)}...` || "random description", //slicing it because razor pay dosent allow desc length more then 255
             image: product.img,
             order_id: order.id, //This is a sample Order ID. Pass the `id` obtained in the response of Step 1
             callback_url: "http://localhost:4000/api/buy/paymentVerify",
