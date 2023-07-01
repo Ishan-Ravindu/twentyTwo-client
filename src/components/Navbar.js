@@ -1,14 +1,14 @@
 import { Badge } from "@material-ui/core"
 import { Search, ShoppingCartOutlined } from '@material-ui/icons'
 //import { ShoppingCartOutlined } from "@mui/icons-material"
-import { Link } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import React, {useState, useEffect} from 'react'
 import styled from 'styled-components'
 import {mobile} from '../Responsive'
 import { useSelector } from "react-redux";
 import { useDispatch} from 'react-redux'
 import { logoutUser } from '../redux/userRedux'
-import { userRequest } from "../axiosReqMethods";
+import { publicRequest, userRequest } from "../axiosReqMethods";
 import { setProduct } from "../redux/cartRedux";
 
 
@@ -58,20 +58,59 @@ const SearchContainer = styled.div`
     padding: 5px;
     border-radius: 0.5vmin;
     height: 25px;
-    
-`
-const Input = styled.input`
-    outline: none;
-    border: none;
-    background-color: transparent;
-    width: 100%;
-    
-    
+    position: relative;
+    ${mobile({
+        marginLeft: "0px"
+    })}
     
 `
 
+const Input = styled.input`
+    outline: none;
+    border: none;
+    background-color: transparent !important;
+    width: 100%;
+`
+const Ul = styled.ul`
+    position: absolute;
+    width: 100%;
+    top : 105%;
+    background-color: white;
+    border-radius: 0 0 1vmax 1vmax;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+    padding: 0 0;
+    transition: all 0.00001ms ease-in-out;
+    overflow: hidden;
+    display: ${props => props.isFocus ? "block" : "none"};
+    //transition-delay: 0.5s; // this is using beacause i am doind "display: none" to ul if title target is false so wen we click on searched products li the target is getting false and the js is not running for that in my case i a redirecting  to that specific product
+  
+`
+const Li = styled.li`
+    //margin: 5px 0px;
+    list-style: none;
+    text-align: start;
+    padding: 5px 5px;
+    width: 100%;
+    cursor: pointer;
+
+    :hover {
+        background-color: #ededeb;
+    }
+    &:last-child {
+        border-radius: 0 0 1vmax 1vmax;
+    }
+
+`
+    
+
+
+
 const Center = styled.div`
     flex: 1;
+    ${mobile({
+        flex: 2
+    })}
 `
 const Logo = styled.h1`
     font-weight: bold;
@@ -142,7 +181,7 @@ const MenueItem = styled.div`
 `
 
 function Navbar() {
-
+    const redirect = useNavigate();
 
     const HandleClick = () => {
 
@@ -155,14 +194,11 @@ function Navbar() {
     const handleLogout = () => {       
         dispatch(logoutUser())
     }
-
-      //const cartQuantity = useSelector(state => state.cart.quantity)
-    //   const cartProductss = useSelector(state => state.cart.quantity)
     const user = useSelector(state => state.user.currentUser);
     const cartSize = useSelector(state => state.cart.quantity)
-    console.log(cartSize)
 
     useEffect(() => {
+        if(!user) return 
         const fetchh = async () => {
             const {data} = await userRequest.get("api/cart/size")
             dispatch(setProduct(data.size))
@@ -170,6 +206,34 @@ function Navbar() {
         fetchh();
 
     }, [])
+
+    const [searchProducts, setSearchProducts] = useState();
+    const handleSearch = async (e) => {
+        if(!e.target.value) return setSearchProducts(null)
+
+        try {
+            const { data } = await publicRequest.get(`/api/products/search/${e.target.value}`)
+            setSearchProducts(data)    
+        } catch (error) {
+            if(error.response.status === 404){
+                return setSearchProducts([{title: "no Products Found"}])
+            } else {
+                return setSearchProducts([{title: "Unable to find products"}])
+            }
+        }
+        
+    }
+
+    const [isInputFocus, setIsInputFocus] = useState(false);
+    const handleFocus = (p) => {
+        setIsInputFocus(true)
+    }  
+    const handleBlur = () => {
+        setIsInputFocus(false)       
+    }  
+    const handleClick = (id) => {
+        redirect(`/product/${id}`)      
+    }  
     
   return (
     <Container>
@@ -179,8 +243,14 @@ function Navbar() {
             </Left>
             <Center>
             <SearchContainer>
-                    <Input></Input><Search style={{colour: "grey", fontSize: 16, cursor: "pointer" }}/>  
-                </SearchContainer>
+                    <Input onFocus={handleFocus} onBlur={() => handleBlur()} onChange={handleSearch} placeholder="Search"></Input><Search style={{colour: "grey", fontSize: 16, cursor: "pointer" }}/>  
+                    <Ul isFocus={isInputFocus}>
+                        {searchProducts?.map((p) => {   
+                            return <Li key={p._id} onMouseDown={() => handleClick(p._id)}>{p.title}</Li> //used onMouseDown because onClick was not working over there the Input > onFocus event was overriding this event
+                        })}
+                        
+                    </Ul>
+            </SearchContainer>
             </Center>
             <Right>
                 {!user ? <><MenueItem><Link style={link} to="/signup">Sing Up</Link></MenueItem>
