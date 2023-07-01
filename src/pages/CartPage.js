@@ -1,14 +1,16 @@
-import React, { useEffect}from 'react'
+import React, { useEffect, useState}from 'react'
 import Announcments from '../components/Announcments'
 import Navbar from '../components/Navbar'
 import styled from 'styled-components'
 import NewsLetter from '../components/NewsLetter'
 import Footer from '../components/Footer'
-import { Add, ClearOutlined, DeleteOutlineOutlined, Remove } from '@material-ui/icons'
+import { Add, ClearOutlined, Remove } from '@material-ui/icons'
 import { mobile } from '../Responsive'
 import  { useSelector, useDispatch } from 'react-redux'
-import { deleteProduct, setPrice} from '../redux/cartRedux'
-import { StyleRounded } from '@mui/icons-material'
+import { useNavigate } from 'react-router-dom'
+import { userRequest } from '../axiosReqMethods'
+import { deleteProduct } from '../redux/cartRedux'
+import addDynamicScript from '../helpers/addDynamicScript'
 
 
 
@@ -51,12 +53,19 @@ const Bottom = styled.div`
     display: flex;
     justify-content: space-between;
     //flex-direction: column;
-    ${mobile({
-        flexDirection: "column",
-    })} 
+    @media only screen and (max-width: 970px) {
+        flex-direction: column;
+        align-items: center;       
+    }
 `
 const Info = styled.div`
     flex: 3;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    @media only screen and (max-width: 970px) {
+        align-items: center;       
+    }
 
 `
 
@@ -67,45 +76,65 @@ const Product = styled.div`
     display: flex;
     margin: 10px 0px;
     position: relative;
+    overflow: hidden;
     background-color: #f7f7f7;
     margin-right: 20px;
+    transition: all 0.3s ease-in-out;
+
     ${mobile({
         flexDirection: "column",  
-        marginRight: "0px",
+        margin: "10px 5px",
     })} 
+    @media only screen and (max-width: 970px) {
+        width: 99%;
+    }
+
+    :hover{
+      box-shadow: 0px 0px 5px #888888;
+      transform: scale(1.02);
+    }
 `
 const DelButton = styled.div`
     
     position: absolute;
     right: 0px;
     top: 0px;
+
     ${mobile({
-        top: "50%",
-        right: "0px",
-        
+        top: "45%"
     })}
     
 `
 
 const ProductDeteail = styled.div`
     flex: 2;
+    width: 100%;
     display: flex;
     ${mobile({
         flex: "1",
-        width: "5vw",
+        width: "100vw",
     })} 
 `
 const Image = styled.img`
     width: 200px;
+    max-width: 30%;
+    object-fit: cover;
 
 `
 const Details = styled.div`
     display: flex;
+    flex: 1;
     flex-direction: column;
+    max-width: fit-content;
+    padding-right: 10px;
     justify-content: space-around;
     margin: 10px;
+    ${mobile({
+        width: "100%",
+    })} 
     `
-const ProductName = styled.span``
+const ProductName = styled.span`
+`
 const ProductNumber = styled.span``
 const ProductColor = styled.div`
     width: 20px;
@@ -177,9 +206,14 @@ const Hr = styled.hr`
 const Summary = styled.div`
     flex: 1;
     max-height: 50vh;
+    width: 350px;
+    max-width: 100%;
     border: solid lightgray 1px;
     border-radius: 2vmax;
     padding: 10px;
+    @media only screen and (max-width: 970px) {
+        width: 90%;
+    }
 `
 
 const SummaryTitle = styled.h1`
@@ -195,7 +229,9 @@ const SummaryItem = styled.div`
     margin: ${props=> props.type === "total" && 10}px 0px;
 `
 const SummaryText = styled.div`
-
+    white-space: nowrap;
+    width: 80%; 
+    overflow: hidden;
 `
 const SummaryPrice = styled.div`
     
@@ -223,55 +259,124 @@ const Button = styled.button`
 
 
 
-    
-
-
 function CartPage(props) {
+    const dispatch = useDispatch();
+    const navigate = useNavigate()
+    const [cartProductRes, setCartProductRes] = useState();
 
     //to change title as soon as component mounts
     useEffect(() => {
         document.title = `SatnamCreation - ${props.title}`
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
     
-    //api calls
-    // const userID = useSelector(state => state.user.currentUser._id);
-    // console.log(`local = ${userID}`)
-    // const dispatch = useDispatch();
- 
-    // useEffect( async () => {
-    //     const cartProductRes = await userRequest.get(`/api/cart/info/${userID}`)
-    //     cartProductRes.data.products.map(async (product)=>{
-    //         const singleProducts = await publicRequest.get(`api/products/info/${cartProductRes.data.products.productID}`)
-    //         console.log(singleProducts)
-    //         dispatch(
-    //             addProduct({product})  
-    //         )
-    //     })
-    //     console.log(cartProductRes.data)
-    // }, [])
-
-    const cartProducts = useSelector(state => state.cart)
-    const dispatch = useDispatch();
+    const user = useSelector(state => state?.user?.currentUser);
 
 
+    //get User Cart
+    useEffect( async () => {
+        if(user) {
+            try{               
+                const res = await userRequest.get(`/api/cart/info/${user._id}`)
+                setCartProductRes(res.data)
+            }catch(err){
+                console.log("error", err)
+                //TODO: display error component
+            }           
+        }
+    }, [])
+
+    //count cart total
+    const [totalCartPrice, setTotalCartPrice] = useState(0)
     useEffect(() => {   
-        let totalPrice = 0;
-        cartProducts.products.forEach((p) => {    
-            totalPrice = totalPrice + (p.quantity * p.price); 
-        });
-        dispatch(setPrice(totalPrice))
+        console.log("me runed")
+        const total = cartProductRes?.products.reduce((total, item) => {
+            return total + (item.price * item.quantity)
+        },0)
+        setTotalCartPrice(total);
+    }, [cartProductRes?.products, cartProductRes?.products?.map(p => p.quantity)])//map is used bcz we need to reRender this component if any products quantity changes so we maped true every product quantity
+     
+    //delete product
+    const handleDeleteProduct = async (e, id) => {
+        e.preventDefault();
+        try{
+            const filteredProducts = cartProductRes?.products?.filter(p => {
+                return id !== p.productID
+            })
+            setCartProductRes(e => ({...e, products: filteredProducts}))
+            dispatch(deleteProduct())
+            const res = await userRequest.delete(`/api/cart/${id}`)     
+            //TODO: display Success component
+        }catch(err){
+            console.log("error", err)
+            //TODO: display error component
+        }
+    }
 
-        
-    }, [cartProducts.products])
-    
-    console.log(`redux price :${cartProducts.price}`)       
-    
-    const handleDeleteProduct = (id) => {
-        let index = cartProducts.products.findIndex((p) => p._id === id);
-        console.log(`delete index : ${index}`)
-        dispatch(deleteProduct({index}))
+    //handle dec inc in product Quantity
+    const handleProductQuantityChange = async (productID, quantity, incORdec) => {
+        try {
+            const res = await userRequest.put(`/api/cart/updatequantity/${productID}/${quantity}`)
+            // const requestedProsuct = cartProductRes.filter(p => {
+            //     return p.productID === productID
+            // })
+            console.log({productID})
+            const productIndex = cartProductRes.products.findIndex(p => p.productID === productID)
+            console.log({productIndex})
+            const newProduct = cartProductRes.products[productIndex].quantity = quantity
+            setCartProductRes(p => ({...p, newProduct}))
+        } catch (error) {
+            console.log(error)
+        }
+    }
+
+
+    const handleCheckout = async () => {
+        if(!user) {
+            return navigate('/login');
+        } 
+        if(!window.Razorpay) {
+            await addDynamicScript("https://checkout.razorpay.com/v1/checkout.js") //script is not loading at first time dk why so i added this XD
+        } 
+
+        const {data:{order}} = await userRequest.post("api/buy/checkout",{
+            user:user._id,
+            type: "cart"
+        });
+
+        const {data:{key}} = await userRequest.get("api/buy/getkey");
+
+        if(!order || !key){
+            return console.log("error accured while creating order");
+            //TODO: add Message Prompt
+        }
+          
+        const options = {
+            key: key, //reciving key from backend for security purpose  
+            amount: order.ammount, 
+            currency: "INR",
+            name: `${user.firstName} ${user.lastName}'s Cart`,
+            description :  `${user.firstName} ${user.lastName}'s Cart includes total ${cartProductRes?.products?.length}`,
+            image: "https://toppng.com/uploads/preview/astronaut-art-png-jpg-royalty-free-stock-astronauta-dibujo-11562856188offwkk8qo8.png",
+            order_id: order.id, //This is a sample Order ID. Pass the `id` obtained in the response of Step 1
+            callback_url: "http://localhost:4000/api/buy/paymentVerify",  
+            prefill: {
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email,
+                contact: user.number
+            },
+            notes: {
+                address: "Razorpay Corporate Office"
+            },
+            theme: {
+                color: "#40a0a0"
+            }
+        };      
+        const rzp1 = new window.Razorpay(options);
+        rzp1.open();       
+        setCartProductRes(null)
     }
     
+
 
   return (
     <Container>
@@ -287,57 +392,62 @@ function CartPage(props) {
                 </TopTexts>
                 <TopButton type="filled">CheckOut Now</TopButton>
             </Top>
+            {cartProductRes?.productFound === true
+            ? 
             <Bottom>
                 <Info>
-                    {cartProducts.products.map((product) => (
-                        <Product key={product._id}>
-                            <DelButton onClick={() => handleDeleteProduct(product._id)}>
+                    
+                    {cartProductRes?.products?.map((product) => (
+                        <Product key={product.productID}>
+                            <DelButton onClick={(e) => handleDeleteProduct(e,product.productID)}>
                                 <ClearOutlined style={{fontSize: "40px" , color: "#AB2A28"}}/>
                             </DelButton>
-                        <ProductDeteail>
-                         <Image src={product.img}/>
-                           <Details>
-                                <ProductName><b>Product:</b> {product.title}</ProductName>
-                                <ProductNumber><b>ID:</b> {product.productno}</ProductNumber>
-                                <ProductColor color={product.color}/>
-                                <ProductSize><b>Size:</b>  {product.size}</ProductSize>
-                            </Details>
-                        </ProductDeteail>
-                        <PriceDeteail>
-                            <ProductAmmountContainer>
-                                <ValueARButton>
-                                    <Remove/>
-                                </ValueARButton>
-                                <ProductAmmount>{product.quantity}</ProductAmmount>
-                                <ValueARButton>
-                                    <Add/>
-                                </ValueARButton>
+                            <ProductDeteail onClick={() => navigate(`/product/${product._id}`)}>
+                                <Image src={product.img}/>
+                                <Details>
+                                    <ProductName><b>Product:</b> {product.title}</ProductName>
+                                    <ProductNumber><b>ID:</b> {product.productID}</ProductNumber>
+                                    <ProductColor color={product.color}/>
+                                    <ProductSize><b>Size:</b>  {product.size}</ProductSize>
+                                </Details>
+                            </ProductDeteail>
+                            <PriceDeteail>
+                                <ProductAmmountContainer>
+                                    <ValueARButton onClick={() => handleProductQuantityChange(product.productID, --product.quantity)}>
+                                        <Remove/>
+                                    </ValueARButton>
+                                    <ProductAmmount>{product.quantity}</ProductAmmount>
+                                    <ValueARButton onClick={() => handleProductQuantityChange(product.productID, ++product.quantity)}>
+                                        <Add/>
+                                    </ValueARButton>
                                 
-                            </ProductAmmountContainer>
-                            <ProductPrice>{product.price}</ProductPrice>
-
-                        </PriceDeteail>
-                    </Product>
+                                </ProductAmmountContainer>
+                                <ProductPrice>{product.price}</ProductPrice>
+                            </PriceDeteail>
+                        </Product>
                     ))}
                     <Hr/>
                 </Info>
                 <Summary>
                     <SummaryTitle>Products</SummaryTitle>
-                        {cartProducts.products.map((product) => (
+                        {cartProductRes?.products?.map((product) => (
                             <SummaryItem key={product._id}>
                                 <SummaryText>{product.title}</SummaryText>
-                                <SummaryPrice>{product.price * product.quantity}</SummaryPrice>
+                                <SummaryPrice>{(product.price * product.quantity)?.toFixed(2)}</SummaryPrice>
                             </SummaryItem>
                         ))}
                         <SummaryItem type="total">
                             <SummaryText >Total</SummaryText>
-                            <SummaryPrice>{cartProducts.price}</SummaryPrice>
+                            <SummaryPrice>{totalCartPrice?.toFixed(2)}</SummaryPrice>
                         </SummaryItem>
                         <ButtonWrapper>
-                            <Button>Check out</Button>
+                            <Button onClick={handleCheckout} >Check out</Button>
                         </ButtonWrapper>    
                 </Summary>
+            
             </Bottom>
+            :
+            <p>{cartProductRes?.message}</p>}
         </Wrapper>
         <NewsLetter/>
         <Footer/>

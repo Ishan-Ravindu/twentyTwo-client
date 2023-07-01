@@ -9,7 +9,7 @@ import NewsLetter from '../components/NewsLetter'
 import { mobile } from '../Responsive'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {publicRequest, userRequest} from '../axiosReqMethods'
-import { addProduct, deleteProduct, editProduct } from '../redux/cartRedux'
+import { addProduct} from '../redux/cartRedux'
 import { useDispatch, useSelector } from 'react-redux'
 import addDynamicScript from '../helpers/addDynamicScript'
 import { useRef } from 'react'
@@ -19,10 +19,11 @@ import { useRef } from 'react'
 
 const Wrapper = styled.div`
     display: flex;
-    padding: 20px;
+    padding: 20px; 
     
     ${mobile({
         flexDirection: "column",
+        padding: "20px 10px"
     })}
 
 `
@@ -56,7 +57,10 @@ const Image = styled.img`
 const InfoContainer = styled.div`
     padding: 0px 20px;
     flex: 1;
-    
+
+    ${mobile({
+        padding: "0px 0px",
+    })}
     
 `
 
@@ -202,90 +206,93 @@ const Button = styled.button`
 
 
 function ProductPage(props) {
+    const [product, setProduct] = useState({})
+    const [ProductQuentity, setProductQuentity] = useState(1)
 
+    //setting defalut size and color for product
+    const [Color, setColor] = useState((product?.color?.length >= 0 && `#${product.color[0]}`) || "#000000");
+    const [size, setsize] = useState((product?.size?.length >= 0 && product.size[0]) || "XL");
     
     //to change title as soon as component mounts
     useEffect(() => {
         document.title = `SatnamCreation - ${props.title}`
-      }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-
-    const [ProductQuentity, setProductQuentity] = useState(1)
-    const HandlClick = (type) => {
-     
-        
-        if(type === "dec") setProductQuentity((prev) => ProductQuentity > 1 ? prev -1: prev)
-        if(type === "inc") setProductQuentity((prev) => ProductQuentity < 100 ? prev +1: prev);
-        } 
-
-
+    //fetching product info
     const location = useLocation();
     const id = location.pathname.split("/")[2];
-    const [product, setProduct] = useState({})
-    
-
     useEffect(() => {
       const gatData = async () => {
-          const data = await publicRequest.get(`/api/products/info/${id}`);
-          setProduct(data.data);
-          console.log(product)
+        try {
+            const data = await publicRequest.get(`/api/products/info/${id}`);
+            setProduct(data.data);
+        } catch (error) {
+            console.log(error)
+            //TODO: show error
+        }         
       }
       gatData()
     }, [id])
-    
-  
-    const [Color, setColor] = useState();
-    const [size, setsize] = useState();
-
-    //////////////this dosent work dk why
-    // const [Color, setColor] = useState(product.color[0]);
-    // const [size, setsize] = useState(product.size[0]);
-
-
-    //redux action
+   
+    const HandlClick = (type) => {   
+        if(type === "dec") setProductQuentity((prev) => ProductQuentity > 1 ? prev -1: prev)
+        if(type === "inc") setProductQuentity((prev) => ProductQuentity < 100 ? prev +1: prev);
+    } 
+ 
+    //add to cart   
     const dispatch = useDispatch()
-    const cartProducts = useSelector(state => state.cart);
-    const user = useSelector(state => state.user.currentUser);
-    
-    const handleSubClick = () => {
-        let exist = cartProducts.products.filter((p) => p._id === product._id);
-        let index = cartProducts.products.findIndex((p) => p._id === product._id);
-        
-        //if product already exist 
-        if(exist.length > 0){
-            
-            dispatch(deleteProduct({index})) //deleting a product by pasing index
-            dispatch( //again adding product by adding prev n current quantity
-                            //added XL size by default bcz it wa selecting by default if user dosent selects size
-                editProduct({...product ,size:size || "XL", color:Color, quantity: (exist[0]?.quantity + ProductQuentity), price: product.price }) 
-                
-            )
-        } else {    
-            dispatch(
-                            //added XL size by default bcz it wa selecting by default if user dosent selects size
-                addProduct({...product ,size:size || "XL", color:Color, quantity:ProductQuentity, price: product.price })            
-                )
-        }    
+    const user = useSelector(state => state.user.currentUser);   
+    const handleSubClick = async () => { 
+        try {
+            const res = await userRequest.post(`/api/cart`,{
+                products : [
+                    {
+                        productID: product.productno,
+                        quantity: ProductQuentity,
+                        color: Color || product.color[0],
+                        size : size || product.size[0]
+                    }
+                ]
+            }) 
+            !res.data.productExisted && dispatch(addProduct()) 
+        } catch (error) {
+            console.log(error)
+            //TODO: show error
+        }
     }
+
+
     const navigate = useNavigate();
     const handleBuyNow = async () => {
         if(!user) {
             return navigate('/login');
         } 
-        const loadRes = await addDynamicScript("https://checkout.razorpay.com/v1/checkout.js");
-        console.log(loadRes)
         if(!window.Razorpay) {
-            console.log("calling funtion again")
             await addDynamicScript("https://checkout.razorpay.com/v1/checkout.js") //script is not loading at first time dk why so i added this XD
         } 
-        const {data:{order}} = await userRequest.post("api/buy/checkout",{productID: product._id, quantity:ProductQuentity, size, color:Color,user:user._id});
+
+
+        const {data:{order}} = await userRequest.post("api/buy/checkout",{
+            user:user._id,
+            product: {
+                productID: product._id,
+                quantity:ProductQuentity,
+                size, 
+                color:Color,
+            },
+            type: "product"
+        });
+
         const {data:{key}} = await userRequest.get("api/buy/getkey");
-        console.log(order);
-        
-        
+
+        if(!order || !key){
+            return console.log("error accured while creating order");
+            //TODO: add Message Prompt
+        }
+          
         const options = {
-            key: key, // Enter the Key ID generated from the Dashboard
-            amount: order.ammount, // Amount is in currency subunits. Default currency is INR. Hence, 50000 refers to 50000 paise
+            key: key, //reciving key from backend sue to security 
+            amount: order.ammount, 
             currency: "INR",
             name: product.title,
             description : product.desc || "random description",
@@ -303,14 +310,9 @@ function ProductPage(props) {
             theme: {
                 color: "#40a0a0"
             }
-        };
-        
+        };      
         const rzp1 = new window.Razorpay(options);
-        rzp1.open();
-
-          //ERRORRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-          //payment veefy giving nothng 
-        
+        rzp1.open();       
     }
 
 
@@ -327,60 +329,64 @@ function ProductPage(props) {
         img.current.style.transformOrigion = `center`
         img.current.style.transform = 'scale(1)'
     }
-    
-    
   
   return ( 
     <>
       <Announcments/>
       <Navbar/>
-      <Wrapper>
-          <ImgContainer>
-            <Image src={product.img} onMouseMove={handleImgMouseEnter} ref={img} onMouseLeave={hadleImgMouseLeave}/>
-          </ImgContainer>
-          <InfoContainer>
-              <TitleContainer>
-                <Title>{product.title}</Title>
-                <Dno>Design No - {product.productno}</Dno>
-              </TitleContainer>
-              <Description>{!product.desc ? `Lorem ipsum dolor sit amet consectetur adipisicing elit. Tempora sint accusamus explicabo in natus dolor maiores voluptate labore adipisci!lorem20Lorem ipsum dolor sit amet consectetur adipisicing elit. Porro dicta, commodi pariatur nisi fugiat hic quia voluptas! Quidem, earum voluptas.`: product.desc}
-              </Description>
-              <Price>₹{product.price}</Price>
-              <FilterContainer>
-                  <Filter>
-                      <FilterTitle>Color</FilterTitle>
-                      {(product.color || []).map((e)=> (
-                        <FilterColor color={e} key={e} onClick={()=> setColor(e)}/>
-                      ))}
-                  </Filter>
-                  <Filter>
-                  <FilterTitle>Size</FilterTitle>
-                  <FilterSize onChange={(e)=> setsize(e.target.value)} >
-                      {(product.size || []).map((e)=> (
-                         <FilterSizeOption key={e}>{e}</FilterSizeOption>
-                      ))}
-                  </FilterSize>
-                  </Filter>
-              </FilterContainer>
-                    <CartContainer>
-                      <ValueContainer>
-                        <ValueARButton>
-                            <Remove onClick={()=>HandlClick("dec")}/>
-                        </ValueARButton>
-                        <CartValue>{ProductQuentity}</CartValue>
-                        <ValueARButton>
-                            <Add onClick={()=>HandlClick("inc")}/>
-                        </ValueARButton>
-                        
-                      </ValueContainer>
-                      <PurchaeContainer>
-                        <Button onClick={handleSubClick}>Add To Cart</Button>
-                        <Button onClick={handleBuyNow}>Buy Now</Button>
-                      </PurchaeContainer>
-                    </CartContainer>
-          </InfoContainer>
-
-      </Wrapper>
+        {
+            product ?
+            <Wrapper>
+        
+            <ImgContainer>
+              <Image src={product.img} onMouseMove={handleImgMouseEnter} ref={img} onMouseLeave={hadleImgMouseLeave}/>
+            </ImgContainer>
+            <InfoContainer>
+                <TitleContainer>
+                  <Title>{product.title}</Title>
+                  <Dno>Design No - {product.productno}</Dno>
+                </TitleContainer>
+                <Description>{!product.desc ? `Lorem ipsum dolor sit amet consectetur adipisicing elit. Tempora sint accusamus explicabo in natus dolor maiores voluptate labore adipisci!lorem20Lorem ipsum dolor sit amet consectetur adipisicing elit. Porro dicta, commodi pariatur nisi fugiat hic quia voluptas! Quidem, earum voluptas.`: product.desc}
+                </Description>
+                <Price>₹{product.price}</Price>
+                <FilterContainer>
+                    <Filter>
+                        <FilterTitle>Color</FilterTitle>
+                        {(product.color || []).map((e)=> (
+                          <FilterColor color={e} key={e} onClick={()=> setColor(e)}/>
+                        ))}
+                    </Filter>
+                    <Filter>
+                    <FilterTitle>Size</FilterTitle>
+                    <FilterSize onChange={(e)=> setsize(e.target.value)} >
+                        {(product.size || []).map((e)=> (
+                           <FilterSizeOption key={e}>{e}</FilterSizeOption>
+                        ))}
+                    </FilterSize>
+                    </Filter>
+                </FilterContainer>
+                      <CartContainer>
+                        <ValueContainer>
+                          <ValueARButton>
+                              <Remove onClick={()=>HandlClick("dec")}/>
+                          </ValueARButton>
+                          <CartValue>{ProductQuentity}</CartValue>
+                          <ValueARButton>
+                              <Add onClick={()=>HandlClick("inc")}/>
+                          </ValueARButton>
+                          
+                        </ValueContainer>
+                        <PurchaeContainer>
+                          <Button onClick={handleSubClick}>Add To Cart</Button>
+                          <Button onClick={handleBuyNow}>Buy Now</Button>
+                        </PurchaeContainer>
+                      </CartContainer>
+            </InfoContainer>
+  
+        </Wrapper>
+            : <h1>Loading...</h1>
+        }
+      
       <NewsLetter/>
       <Footer/>
       

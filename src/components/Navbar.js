@@ -2,12 +2,14 @@ import { Badge } from "@material-ui/core"
 import { Search, ShoppingCartOutlined } from '@material-ui/icons'
 //import { ShoppingCartOutlined } from "@mui/icons-material"
 import { Link } from "react-router-dom";
-import React from 'react'
+import React, {useState, useEffect} from 'react'
 import styled from 'styled-components'
 import {mobile} from '../Responsive'
 import { useSelector } from "react-redux";
 import { useDispatch} from 'react-redux'
 import { logoutUser } from '../redux/userRedux'
+import { userRequest } from "../axiosReqMethods";
+import { setProduct } from "../redux/cartRedux";
 
 
 
@@ -149,15 +151,25 @@ function Navbar() {
         });
       }
     const dispatch = useDispatch()
-    const handleLogout = () => {
-        
+    const handleLogout = () => {       
         dispatch(logoutUser())
     }
 
       //const cartQuantity = useSelector(state => state.cart.quantity)
-      const cartProductss = useSelector(state => state.cart.quantity)
-      const user = useSelector(state => state.user.currentUser);
-      console.log(`user : ${JSON.stringify(user)}`)
+    //   const cartProductss = useSelector(state => state.cart.quantity)
+    const user = useSelector(state => state.user.currentUser);
+    const cartSize = useSelector(state => state.cart.quantity)
+    console.log(cartSize)
+
+    useEffect(() => {
+        const fetchh = async () => {
+            const {data} = await userRequest.get("api/cart/size")
+            dispatch(setProduct(data.size))
+        }
+        fetchh();
+
+    }, [])
+    
   return (
     <Container>
         <Wrapper>
@@ -188,7 +200,7 @@ function Navbar() {
                          
                         
                 <MenueItem>
-                    {user && <Badge badgeContent={cartProductss} color="primary">
+                    {user && <Badge badgeContent={cartSize} color="primary">
                         <Link style={link} to="/cart"><ShoppingCartOutlined/></Link>
                     </Badge>}
                 </MenueItem>
