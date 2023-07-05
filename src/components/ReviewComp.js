@@ -4,6 +4,8 @@ import Rating from '@mui/material/Rating';
 import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import { publicRequest } from '../axiosReqMethods';
 import ReviewSingleComp from './ReviewSingleComp';
+import { setError } from '../redux/errorRedux';
+import { useDispatch } from 'react-redux';
 
 const Container = styled.div`
     padding: 30px 4vw;
@@ -65,7 +67,8 @@ const Bottom = styled.div`
 
 
 
-function ReviewComp({productID, productName, ratingCount, rating}) {
+function ReviewComp({productID, productName, ratingCount, rating, setModal}) {
+    const dispatch = useDispatch();
     const [reviews, setReviews] = useState();
     useEffect(() => {
       const fetchReviews = async () => {
@@ -75,6 +78,7 @@ function ReviewComp({productID, productName, ratingCount, rating}) {
             console.log(data)
         } catch (error) {
             console.log(error)
+            dispatch(setError(error.response.data.message))
         }
       }  
       fetchReviews();
@@ -85,7 +89,7 @@ function ReviewComp({productID, productName, ratingCount, rating}) {
         <Top>
             <TitleWAR>
                 <Title>{productName}</Title>
-                <Button><DriveFileRenameOutlineIcon/> Write a Review</Button>
+                <Button onClick={() => setModal(true)} ><DriveFileRenameOutlineIcon/> Write a Review</Button>
             </TitleWAR>
             <RatingWrapper>
                 <RatingCount>{rating}</RatingCount><Rating value={rating} readOnly precision={0.1} /> 
@@ -95,7 +99,7 @@ function ReviewComp({productID, productName, ratingCount, rating}) {
         <Hr/>
         <Bottom>
             {reviews?.map((r) => {
-                return <ReviewSingleComp review={r}></ReviewSingleComp>
+                return <ReviewSingleComp review={r} key={r._id}></ReviewSingleComp>
             })}
         </Bottom>
     </Container>

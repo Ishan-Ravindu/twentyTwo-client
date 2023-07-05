@@ -16,6 +16,8 @@ import { useRef } from 'react'
 import Loading from '../components/Loading'
 import axios from 'axios'
 import ReviewComp from '../components/ReviewComp'
+import WriteaReview from '../components/WriteaReview'
+import { setError } from '../redux/errorRedux'
 
 
 
@@ -217,13 +219,15 @@ const Button = styled.button`
 
 
 function ProductPage(props) {
+    const dispatch = useDispatch()
     const [product, setProduct] = useState({})
     const [ProductQuentity, setProductQuentity] = useState(1)
     const [isLoading, setIsLoading] = useState(true)
-    const [error, setError] = useState(null)
+    //const [error, setError] = useState(null)
     //setting defalut size and color for product
     const [Color, setColor] = useState((product?.color?.length >= 0 && `#${product.color[0]}`) || "#000000");
     const [size, setsize] = useState((product?.size?.length >= 0 && product.size[0]) || "XL");
+    const [modalisOpen, setmodalIsOpen] = useState(false)
     
     //to change title as soon as component mounts
     useEffect(() => {
@@ -242,12 +246,11 @@ function ProductPage(props) {
         try {
             const data = await publicRequest.get(`/api/products/info/${id}`, {cancelToken: ourRequest.token});
             setProduct(data.data);
+            setIsLoading(false)  
         } catch (error) {
-            console.log(error)
-            setError(error.response.data)
-            //TODO: show error
-        }    
-        setIsLoading(false)     
+            dispatch(setError(error.response.data.message))
+            setIsLoading(false)  
+        }     
       }
       gatData()
 
@@ -264,11 +267,11 @@ function ProductPage(props) {
     } 
  
     //add to cart   
-    const dispatch = useDispatch()
+    
     const user = useSelector(state => state.user.currentUser);   
     const handleSubClick = async () => { 
         try {
-            const res = await userRequest.post(`/api/cart/${user._id}`,{
+            const res = await userRequest.post(`/api/cart`,{
                 products : [
                     {
                         productID: product.productno,
@@ -279,10 +282,9 @@ function ProductPage(props) {
                 ]
             }) 
             !res.data.productExisted && dispatch(addProduct()) 
+            dispatch(setError(res.data.message))
         } catch (error) {
-            console.log(error)
-            
-            //TODO: show error
+            dispatch(setError(error.response.data.message))
         }
     }
 
@@ -311,8 +313,7 @@ function ProductPage(props) {
         const {data:{key}} = await userRequest.get("api/buy/getkey");
 
         if(!order || !key){
-            return console.log("error accured while creating order");
-            //TODO: add Message Prompt
+            return dispatch(setError("error accured while creating order"))
         }
           
         const options = {
@@ -360,8 +361,7 @@ function ProductPage(props) {
       <Announcments/>
       <Navbar/>
         {
-            isLoading ? <Loading/> : 
-            (error ? <h2>{error}</h2> :
+            isLoading ? <Loading/> :            
             <>
             <Wrapper>    
             <ImgContainer>
@@ -409,9 +409,9 @@ function ProductPage(props) {
             </InfoContainer>
   
         </Wrapper> 
-        <ReviewComp productID={product._id} productName={product.title} rating={product.ratingsAverage} ratingCount={product.ratingsQuantity}/>
+        <WriteaReview product={product} setModal={setmodalIsOpen} isOpen={modalisOpen} />
+        <ReviewComp productID={product._id} productName={product.title} rating={product.ratingsAverage} ratingCount={product.ratingsQuantity} setModal={setmodalIsOpen}/>
         </>
-        )
         }
       <NewsLetter/>
       <Footer/>
